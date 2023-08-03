@@ -1,13 +1,5 @@
 #! /usr/bin/python3
 
-from conv_blocks import *
-from build_unet import *
-from from_unet import *
-#from from_unet_2 import *
-#from build_unet_2 import *
-from build_ae import *
-#from seg_losses import *
-from seg_funcs_tch import *
 from new_seg_funcs import *
 from new_seg_losses import *
 from seg_metrics import *
@@ -23,26 +15,9 @@ from torch import round as tch_round
 import branchy_seg_losses as BSL
 from eval_mIoU import mIoU_evaluator
 
-conv_blks = {
-    'InvertedResidual': InvertedResidual,
-    'InceptionBlk': InceptionBlk,
-    'CIncepBlk': CIncepBlk,
-    'HDConvBlk': HDConvBlk,
-    'WaveBlk': WaveBlk,
-}
-
 get_mod = {
     'DenseLayer': DenseLayer,
     'ConvLayer': ConvLayer,
-} | conv_blks
-
-net_consts = {
-    'UNet': UNet,
-#    'UNet_2': UNet_2, #gambiarra
-    'EUNet': EUNet,
-    'AE': AE,
-    'branchy_unet': branchy_unet,
-#    'branchy_unet_2': branchy_unet_2,
 }
 
 #default initialization
@@ -77,21 +52,6 @@ get_loss = {
     'ml_softmargin': nn.MultiLabelSoftMarginLoss(),
 } | seg_losses
 
-#Defining top K before
-class TopKAcc:
-    def __init__(self,k=2):
-        self.k = 2
-    def __call__(self,y,y_pred):
-        return top_k_accuracy_score(y,y_pred,k=self.k)
-
-class pixel_acc:
-    def __init__(self, round=True):
-        self.round = round
-
-    def __call__(self, y, y_pred):
-        return accuracy(y.flatten(), tch_round(y_pred).flatten() if self.round else y_pred.flatten())
-
-
 get_metric = {
     'MSE': MSE,
     'Img_MSE': Img_MSE,
@@ -101,23 +61,12 @@ get_metric = {
     'accuracy': Accuracy(),
     'precision': Precision(),
     'recall': Recall(),
-#    'Top3acc': TopKAcc(3),
-#    'Top5acc': TopKAcc(5),
-#    'Top7acc': TopKAcc(7),
     'F1': F_beta(),
     'F2': F_beta(beta=2),
     'F.5': F_beta(beta=.5),
     'Dice': DiceLoss(index=True),
     'Jaccard': JaccardLoss(index=True),
     'mIoU': mIoU_evaluator,
-#    'img_acc': accuracy_images,
-#    'img_rec': recall_images,
-#    'img_prc': precision_images,
-#    'img_f1': f1_score_images,
-#    'jacc_idx': jaccard_index,
-#    'hausdorff': hausdorff,
-#    'seg_score': seg_score,
-#    'dice_idx': dice_index,
 } | seg_losses
 
 get_initializer = {
