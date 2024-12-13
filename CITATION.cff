@@ -1,9 +1,9 @@
-cff-version: 1.0.0
+cff-version: 1.1.0
 message: "If you use this software, please cite it as below."
 authors:
-  - family-names: Gilbert
-    given-names: Mateus da Silva
+  - family-names: da Silva Gilbert
+    given-names: Mateus
     orcid: https://orcid.org/0000-0003-0407-2127
 title: "EE-DNN for Semantic Segmentation"
-version: 1.0.0
-date-released: 2023-12-25
+version: 1.1.0
+date-released: 2024-12-13
