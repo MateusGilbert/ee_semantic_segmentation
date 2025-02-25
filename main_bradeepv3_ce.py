@@ -2,7 +2,7 @@
 
 from common_header import *
 import branchy_seg_losses as BSL
-from new_seg_losses import LovaszSoftmax
+from my_pixelwise_xentropy import BrXEntropyLoss
 import glob
 from exp_setup import *
 from get_seg_datasets import LoadDataset
@@ -41,8 +41,8 @@ n_branches = args.n_branches
 name = args.Name
 num_epochs = args.num_epochs
 lr = args.lr
-base_lr = args.base_lr
 min_lr  = args.min_lr
+base_lr = args.base_lr
 count_branches = args.count_branches
 if n_branches and not base_lr:
     base_lr = lr
@@ -117,19 +117,19 @@ dts_info = {
         'base_lr': base_lr,
         'num_epochs': num_epochs,
         'batch_sizes': 32,
-        #'loss': LovaszSoftmax(classes='present', ignore=21),#, n_branches=n_branches, prev_out=True),
-        'loss': BSL.LovaszSoftmax(classes='present', ignore=21, n_branches=n_branches), #prev_out=True),
+        #'loss': BSL.LovaszSoftmax(classes='present', ignore=21, n_branches=n_branches, prev_out=True),
+        'loss': BrXEntropyLoss(ignore_index=21, b_reduction='sum', n_exits=n_branches+1),
         'use_scheduler': True,
         'nout_channels': 21,
         'skip': skip,
         'fine_tune': fine_tune,
         'freeze_backbone': True if fine_tune else False,
-        'freeze_from': None,#4 if fine_tune else None,
+        'freeze_from': None, #4 if fine_tune else None,
         'weighted_lr': False,
 		'branch_params': None,#{
-					#		'atrous_rates': [12, 24, 36], #talvez definir individualmente (p/ futuro)
-					#		'nout_channels': 128,
-					#	 },
+						#	'atrous_rates': [12, 24, 36], #talvez definir individualmente (p/ futuro)
+					    #'nout_channels': 128,
+						#},
         #'lr_law': _lr_law,
     }
 

@@ -14,7 +14,7 @@ import concurrent.futures as concurrent
 import datetime as dttm
 from torch import jit
 from collections import defaultdict
-import from_deepv3 as dv3
+import from_deepv3_new as dv3
 
 def train_deepv3(net,num_epochs,kwargs):
     #jit.enable_onednn_fusion(True)                <<<<<<<<<<<<----------------------
@@ -34,8 +34,14 @@ def train_deepv3(net,num_epochs,kwargs):
     ## dataset params.
     transform = kwargs['transforms'] if 'transforms' in kwargs.keys() else None
     batch_size = kwargs['batch_sizes']
+
+    ## lr params
     lr = kwargs['lr']
+    min_lr = kwargs['min_lr'] if 'min_lr' in kwargs.keys() else 0
     base_lr = kwargs['base_lr'] if 'base_lr' in kwargs.keys() else None
+    freeze_backbone = kwargs['freeze_backbone'] if 'freeze_backbone' in kwargs.keys() else False
+    freeze_from = kwargs['freeze_from'] if 'freeze_from' in kwargs.keys() else False
+    weighted_lr = kwargs['weighted_lr'] if 'weighted_lr' in kwargs.keys() else False
 
     # define train params.
     patience = kwargs['patience'] if 'patience' in kwargs.keys() else None
@@ -65,10 +71,31 @@ def train_deepv3(net,num_epochs,kwargs):
         n_branches = None
 
     #customize the lines below
+    params = list()
     if n_branches and base_lr:
-        params = [{'params': net.base_model.parameters(), 'lr': base_lr},
-                  {'params': net.classifier.parameters(), 'lr': lr*1.1}]    #no_skip_2 1.1
-        params.append({'params': net.branches.parameters(), 'lr': lr})
+        if freeze_backbone:
+            for layer in net.base_model.parameters():
+                layer.requires_grad = False
+            if freeze_from:
+                for layer in net.branches[freeze_from:].parameters():
+                    layer.requires_grad = False
+        else:
+            params.append({'params': net.base_model.parameters(), 'lr': base_lr})
+                 # {'params': net.classifier.parameters(), 'lr': lr*1.1}]    #no_skip_2 1.1
+        #params.append({'params': net.branches.parameters(), 'lr': lr})
+        if weighted_lr:
+            weights = np.linspace(1, 1.2, num=n_branches)   #talvez dobrar?
+            params.extend([{'params': net.branches[i].parameters(), 'lr': lr*weights[i]} for i in range(len(weights)-1)])
+            params.append({'params': net.classifier.parameters(), 'lr': lr*weights[-1]})
+        elif freeze_backbone:
+            if freeze_from:
+                params.append({'params': net.branches[:freeze_from].parameters(), 'lr': lr})
+            else:
+                params.append({'params': net.branches.parameters(), 'lr': lr})
+            params.append({'params': net.classifier.parameters(), 'lr': lr})
+        else:
+            params.append({'params': net.branches.parameters(), 'lr': lr})
+            params.append({'params': net.classifier.parameters(), 'lr': lr*1.1})
         optimizer = optim.SGD(params, lr=lr, momentum=.9, weight_decay=5e-4)
     else:
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=.9, weight_decay=5e-4)
@@ -96,7 +123,7 @@ def train_deepv3(net,num_epochs,kwargs):
             print(msg)
 
         #define number of workers and prefetch factor
-        num_workers = kwargs['def_nworkers'](b_size)*tch.cuda.device_count()
+        num_workers = kwargs['def_nworkers'](b_size)#*tch.cuda.device_count()
         p_factor = kwargs['def_prefetch'](b_size)
 
         #change lr
@@ -118,8 +145,14 @@ def train_deepv3(net,num_epochs,kwargs):
                                     mode='min' if minimize else 'max',
                                     patience=scheduler_patience, eps=1e-6, min_lr=min_lr)
             else:
-                min_lr = 0
-                scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda k: (1 - k/num_epochs)**.9)
+                if min_lr:
+                     w = (min_lr / lr)**(1/.9)
+                     N_0 = num_epochs*w/(1 - w)
+                     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda k: (1 - k/(num_epochs + N_0))**.9)
+                else:
+                     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda k: (1 - k/num_epochs)**.9)
+                #min_lr = 0
+                #scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda k: (1 - k/num_epochs)**.9)
             ret_lr=True
 
         #define data loader
@@ -182,11 +215,18 @@ def eval_deepv3(kwargs):
 
 
     n_branches = kwargs['n_branches']
+    branch_params = kwargs['branch_params'] if 'branch_params' in kwargs.keys() else None
     base_model = os.path.join(saveat, name + '_base.pth')
+    fine_tune = kwargs['fine_tune'] if 'fine_tune' in kwargs.keys() else None
+    #freeze_backbone = True if fine_tune else False
     with tch.no_grad():
-        net = dv3.branchyDeepv3(base_model, f'deeplabv3_{type}', n_branches, kwargs['input_dim'], count_branches = kwargs['count_branches'], skip=kwargs['skip'])  if n_branches else dv3.get_base_model(base_model, f'deeplabv3_{type}')
+        if fine_tune:
+            net = load(fine_tune, map_location=tch.device('cpu'))
+            net.to(device)
+        else:
+            net = dv3.branchyDeepv3(base_model, f'deeplabv3_{type}', n_branches, kwargs['input_dim'], count_branches=kwargs['count_branches'], skip=kwargs['skip'], branch_params=branch_params)  if n_branches else dv3.get_base_model(base_model, f'deeplabv3_{type}', pretrained=False)
 
-    if n_branches != net.n_branches:
+    if n_branches and (n_branches != net.n_branches):
         n_branches = net.n_branches
         kwargs['loss'].update_n(n_branches)
         kwargs['n_branches'] = n_branches

@@ -14,8 +14,21 @@ from numpy.random import standard_normal, binomial, choice
 from numpy import sqrt
 from my_datahanddlers import map_to
 import pandas as pd
+from torch import nn, tensor
+from skimage.util import random_noise
 #from torch.nn import Sequential
 #from torch.jit import script as jscript
+
+#additional noises
+class Salt_n_Pepper(nn.Module):
+    def __init__(self, prop=.5, amount=.05):
+        #prop = 0 all pepper, 1 all salt; amount of pixels corrupted
+        super().__init__() 
+        self.prop = prop if 0. < prop <= 1. else .5
+        self.amount = amount if amount < 1. else .005
+
+    def forward(self, img):
+        return tensor(random_noise(img, mode='s&p', amount=self.amount, salt_vs_pepper=self.prop))
 
 class LoadDataset():
     def __init__(self, input_dim, target_dim=None, batch_size_train=None, batch_size_test=None, seed=42):
@@ -38,7 +51,7 @@ class LoadDataset():
             transforms.CenterCrop(input_dim),
             transforms.ToTensor(),
             transforms.RandomApply([
-               # transforms.RandomChoice([
+                 transforms.RandomChoice([
                     transforms.ColorJitter(
                             brightness=.5,
                             contrast=.5,
@@ -48,9 +61,9 @@ class LoadDataset():
                     #os que seguem abaixo, se desagradar tirar
                     #transforms.GaussianBlur(15,sigma=(.1,1.5)),
                     #transforms.ElasticTransform(alpha=50.),
-                    #dps acrescentar pepper-and-salt noise
-                 ], p=.2,
-            ),
+                    Salt_n_Pepper(amount=.01),
+                 ])
+                 ], p=.2),
             transforms.Normalize(mean = mean, std = std),
         ])
 

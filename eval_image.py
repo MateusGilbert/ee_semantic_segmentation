@@ -52,14 +52,14 @@ for model in models:
         if e.errno != errno.EEXIST:
             raise
 
-    net = tch.load(model)
+    net = tch.load(model, map_location=tch.device('cpu'))
     n = net.n_branches
     net.to(device)
     net.eval()
     for img in images:
         if verbose:
             print(f'\tImage: {img}')
-        input_image = Image.open(img)
+        input_image = Image.open(os.path.join(og_dir,img))
         input_image = input_image.convert("RGB")
 
         input_tensor = preprocess(input_image).to(device)
